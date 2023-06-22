@@ -38,3 +38,26 @@ pub fn reflectance(cosine: f32, ref_idx: f32) -> f32 {
     let r0 = r0.powi(2);
     r0 + (1.0 - r0) * (1.0 - cosine).powi(5)
 }
+// Return the chunks and each chunk size
+pub fn split_evenly<T>(vec: Vec<T>, n: usize) -> (Vec<Vec<T>>, Vec<usize>)
+where
+    T: Clone,
+{
+    let mut chunks = Vec::with_capacity(n);
+    let len = vec.len();
+    let chunk_size = (len as f64 / n as f64).ceil() as usize;
+    let mut chunk = Vec::with_capacity(chunk_size);
+    let mut chunk_sizes = Vec::with_capacity(n);
+    for (i, item) in vec.into_iter().enumerate() {
+        if i != 0 && i % chunk_size == 0 {
+            chunks.push(chunk);
+            chunk = Vec::with_capacity(chunk_size);
+        }
+        chunk.push(item);
+    }
+    chunks.push(chunk);
+    for chunk in &chunks {
+        chunk_sizes.push(chunk.len());
+    }
+    (chunks, chunk_sizes)
+}

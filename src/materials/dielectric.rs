@@ -2,7 +2,7 @@ use crate::{
     material,
     materials::Material,
     utils::{
-        helpers::{random_float, random_in_unit_sphere, reflectance},
+        helpers::{random_float, reflectance},
         hittable::HitRecord,
         ray::Ray,
         vec::Color,
