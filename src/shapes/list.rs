@@ -1,4 +1,7 @@
-use crate::utils::hittable::{HitRecord, Hittable};
+use crate::utils::{
+    hittable::{HitRecord, Hittable},
+    ray::Ray,
+};
 
 #[derive(Default, Clone)]
 pub struct HittableList {
@@ -20,7 +23,7 @@ impl HittableList {
 }
 
 impl Hittable for HittableList {
-    fn hit(&self, ray: &crate::utils::ray::Ray, t_min: f32, t_max: f32) -> Option<HitRecord> {
+    fn hit(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<HitRecord> {
         let mut hit_record = None;
         let mut closest_so_far = t_max;
         for object in &self.objects {

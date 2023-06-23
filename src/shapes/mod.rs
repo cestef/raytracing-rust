@@ -1,5 +1,7 @@
 pub mod list;
+pub mod plane;
 pub mod sphere;
+pub mod triangle;
 
 // Declare shape struct with material
 /*

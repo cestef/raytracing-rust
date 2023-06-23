@@ -7,13 +7,14 @@ use std::{fs::File, io::Write, sync::mpsc::channel, thread};
 use crate::{
     camera::Camera,
     materials::{lambertian::Lambertian, metal::Metal},
-    shapes::list::HittableList,
+    shapes::{list::HittableList, plane::Plane, triangle::Triangle},
     utils::{
-        helpers::{random_float, random_float_range, split_evenly},
+        helpers::{parse_aspect_ratio, random_float, random_float_range, split_evenly},
         hittable,
         vec::Color,
     },
 };
+use clap::Parser;
 use indicatif::{HumanDuration, MultiProgress, ProgressBar, ProgressStyle};
 use shapes::sphere::Sphere;
 use utils::vec::{Point3, Vec3};
@@ -23,21 +24,58 @@ struct TxData {
     thread_id: usize,
 }
 
+#[derive(Debug, Parser)]
+#[clap(
+    name = "raytracer",
+    version = "0.1.0",
+    author = "cstef",
+    about = "A raytracer written in Rust."
+)]
+struct Args {
+    #[clap(short, long, default_value_t = 2560)]
+    width: i32,
+    #[clap(short, long)]
+    height: Option<i32>,
+    #[clap(short, long, default_value = "16/9")]
+    aspect_ratio: String,
+    #[clap(short, long, default_value_t = 100)]
+    samples: i32,
+    #[clap(short, long, default_value_t = num_cpus::get())]
+    threads: usize,
+    #[clap(short, long, default_value = "output.ppm")]
+    output: String,
+    #[clap(short, long, default_value_t = 90.0)]
+    fov: f32,
+    #[clap(long)]
+    open: bool,
+}
+
 fn main() {
+    let args = Args::parse();
     // print!("\x1B[2J\x1B[1;1H");
-    let cpus = num_cpus::get();
+    let cpus = args.threads;
     // let cpus = 8;
-    let aspect_ratio = 16.0 / 9.0; // =~ 1.7
-    let image_width = 2560;
-    let image_height = (image_width as f64 / aspect_ratio) as i32;
-    let samples_per_pixel = 100;
+    let image_width = args.width;
+    let aspect_ratio = parse_aspect_ratio(&args.aspect_ratio).unwrap_or({
+        if args.width > 0 && args.height.is_some() {
+            args.width as f32 / args.height.unwrap() as f32
+        } else {
+            16.0 / 9.0
+        }
+    });
+    let image_height = if let Some(height) = args.height {
+        height
+    } else {
+        (image_width as f32 / aspect_ratio) as i32
+    };
+    let samples_per_pixel = args.samples;
 
     let camera = Box::new(Camera::new(
         Vec3::new(-5.0, 5.0, 5.0),
         Vec3::new(0.0, 0.0, 0.0),
         Vec3::new(0.0, 1.0, 0.0),
-        90.0,
-        aspect_ratio as f32,
+        args.fov,
+        aspect_ratio,
     ));
     let random: Vec<Box<dyn hittable::Hittable>> = vec![0; 10]
         .iter()
@@ -65,11 +103,20 @@ fn main() {
         })
         .collect();
     let world = Box::new(HittableList::new(
-        vec![Box::new(Sphere::new(
-            Point3::new(0.0, -1010.0, 0.0),
-            1000.0,
-            Box::new(Lambertian::new(Color::new(0.5, 0.5, 0.5))),
-        )) as Box<dyn hittable::Hittable>]
+        vec![
+            Box::new(Plane::new(
+                Point3::new(0.0, -5.0, 0.0),
+                Vec3::new(0.0, 1.0, 0.0),
+                Box::new(Metal::new(Color::new(0.5, 0.5, 0.5), 0.0)),
+            )) as Box<dyn hittable::Hittable>,
+            // Box::new(Triangle::new(
+            //     Point3::new(-5.0, 0.0, -5.0),
+            //     Point3::new(5.0, 0.0, -5.0),
+            //     Point3::new(0.0, 0.0, 5.0),
+            //     Vec3::new(0.0, 1.0, 0.0),
+            //     Box::new(Metal::new(Color::new(0.5, 0.5, 0.5), 0.0)),
+            // )) as Box<dyn hittable::Hittable>,
+        ]
         .into_iter()
         .chain(random.into_iter())
         .collect(),
@@ -162,7 +209,7 @@ fn main() {
         image_buffer[data.thread_id] = data.buffer;
     });
 
-    let mut file_stream = File::create("image.ppm").unwrap();
+    let mut file_stream = File::create(args.output.clone()).unwrap();
 
     file_stream
         .write_all(format!("P3\n{} {}\n255\n", image_width, image_height).as_bytes())
@@ -177,4 +224,7 @@ fn main() {
         HumanDuration(duration),
         duration.as_millis() as f32 / image_height as f32
     );
+    if args.open {
+        open::that(args.output.clone()).expect("Failed to open image.ppm");
+    }
 }

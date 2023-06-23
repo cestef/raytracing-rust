@@ -61,3 +61,24 @@ where
     }
     (chunks, chunk_sizes)
 }
+pub fn parse_aspect_ratio(aspect_ratio: &str) -> Result<f32, String> {
+    let splitters = vec![":", "/", "x"];
+    for splitter in splitters {
+        if aspect_ratio.contains(splitter) {
+            let mut split = aspect_ratio.split(splitter);
+            let width = split
+                .next()
+                .expect("Failed to get width from aspect_ratio")
+                .parse::<i32>()
+                .expect("Failed to parse width from aspect_ratio");
+            let height = split
+                .next()
+                .expect("Failed to get height from aspect_ratio")
+                .parse::<i32>()
+                .expect("Failed to parse height from aspect_ratio");
+            let ratio = width as f32 / height as f32;
+            return Ok(ratio);
+        }
+    }
+    Err("Failed to parse aspect ratio".to_string())
+}
