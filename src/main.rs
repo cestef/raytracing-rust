@@ -171,9 +171,9 @@ fn main() {
 
     let duration = start.elapsed();
     println!(
-        "\n⏱️  Time elapsed: {} (avg. {:.2}ms/line)\n",
+        "\n⏱️  Time elapsed: {} (avg. {:.2}µs/pixel)",
         HumanDuration(duration),
-        duration.as_millis() as f32 / image_height as f32
+        duration.as_micros() as f32 / (image_height as f32 * image_width as f32)
     );
     if args.open {
         open::that(args.output.clone()).expect(&format!("Failed to open {}", args.output));

@@ -126,6 +126,6 @@ pub fn clear() {
     if env::consts::OS == "macos" || env::consts::OS == "linux" {
         std::process::Command::new("clear").status().unwrap();
     } else {
-        std::process::Command::new("cls").status().unwrap();
+        std::process::Command::new("clear").status().unwrap();
     }
 }
