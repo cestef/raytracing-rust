@@ -16,6 +16,7 @@ This is just a raytracer written in Rust. It is based on the book [Ray Tracing i
 - [x] Gamma correction
 - [x] Multithreading
 - [x] Triangle mesh support
+- [x] Load balancing 
 - [ ] Rendering to a window
 - [ ] Textures
 - [ ] Importing models
