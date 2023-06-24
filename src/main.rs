@@ -1,60 +1,35 @@
-mod camera;
+#![allow(dead_code)]
+
 mod materials;
 mod shapes;
 mod utils;
-use std::{fs::File, io::Write, sync::mpsc::channel, thread};
+
+use std::{fs::File, io::BufWriter, sync::mpsc::Receiver};
 
 use crate::{
-    camera::Camera,
     materials::{lambertian::Lambertian, metal::Metal},
-    shapes::{list::HittableList, plane::Plane, triangle::Triangle},
+    shapes::{list::HittableList, plane::Plane},
     utils::{
-        helpers::{parse_aspect_ratio, random_float, random_float_range, split_evenly},
+        args::Args,
+        camera::Camera,
+        helpers::{
+            clear, compute_chunk, parse_aspect_ratio, random_float, random_float_range,
+            split_evenly,
+        },
         hittable,
-        vec::Color,
+        result::Res,
+        threads::{job::Job, pool::ThreadPool},
+        vec::{Color, Point3, Vec3},
     },
 };
 use clap::Parser;
-use indicatif::{HumanDuration, MultiProgress, ProgressBar, ProgressStyle};
+use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
 use shapes::sphere::Sphere;
-use utils::vec::{Point3, Vec3};
-
-struct TxData {
-    buffer: String,
-    thread_id: usize,
-}
-
-#[derive(Debug, Parser)]
-#[clap(
-    name = "raytracer",
-    version = "0.1.0",
-    author = "cstef",
-    about = "A raytracer written in Rust."
-)]
-struct Args {
-    #[clap(short, long, default_value_t = 2560)]
-    width: i32,
-    #[clap(short, long)]
-    height: Option<i32>,
-    #[clap(short, long, default_value = "16/9")]
-    aspect_ratio: String,
-    #[clap(short, long, default_value_t = 100)]
-    samples: i32,
-    #[clap(short, long, default_value_t = num_cpus::get())]
-    threads: usize,
-    #[clap(short, long, default_value = "output.ppm")]
-    output: String,
-    #[clap(short, long, default_value_t = 90.0)]
-    fov: f32,
-    #[clap(long)]
-    open: bool,
-}
 
 fn main() {
+    clear();
     let args = Args::parse();
-    // print!("\x1B[2J\x1B[1;1H");
     let cpus = args.threads;
-    // let cpus = 8;
     let image_width = args.width;
     let aspect_ratio = parse_aspect_ratio(&args.aspect_ratio).unwrap_or({
         if args.width > 0 && args.height.is_some() {
@@ -122,101 +97,77 @@ fn main() {
         .collect(),
     ));
 
-    let mut image_buffer = vec![String::new(); cpus];
+    let mut image_buffer: Vec<Vec<Vec3>> =
+        Vec::with_capacity((image_height * image_width) as usize);
+    image_buffer.resize((image_height * image_width) as usize, vec![]);
 
     let start = std::time::Instant::now();
 
-    let mut image_rows = (0..image_height).collect::<Vec<i32>>();
-    image_rows.reverse();
+    let thread_pool =
+        ThreadPool::<(Vec<i32>, Box<Camera>, Box<HittableList>, i32, i32, i32), Res>::new(cpus);
 
-    let (buffer_tx, buffer_rx) = channel::<TxData>();
+    let (rows_chunks, rows_per_chunk) =
+        split_evenly((0..image_height).collect::<Vec<i32>>(), args.jobs);
 
-    let mp = MultiProgress::new();
+    let mut rxs: Vec<Receiver<Res>> = Vec::with_capacity(cpus);
+    let progress_bar = ProgressBar::new(image_height as u64).with_style(
+        ProgressStyle::default_bar()
+            .template("[{elapsed_precise}] {bar:40.cyan/blue} {percent}% {eta_precise}")
+            .unwrap()
+            .progress_chars("█▉▊▋▌▍▎▏ "),
+    );
+    progress_bar.println(format!(
+        "ℹ️  Rendering {}x{} ({} spp) | {} jobs for {} threads ({} rows/chunk)",
+        image_width, image_height, samples_per_pixel, args.jobs, cpus, rows_per_chunk[0]
+    ));
 
-    thread::scope(|s| {
-        let (rows_chunks, rows_per_chunk) = split_evenly(image_rows, cpus);
+    for chunk in rows_chunks {
+        let camera = camera.clone();
+        let world = world.clone();
+        let (job, rx) = Job::with_result_sink(
+            move |args| compute_chunk(args),
+            (
+                chunk,
+                camera,
+                world,
+                image_width,
+                image_height,
+                samples_per_pixel,
+            ),
+        );
+        thread_pool.schedule(job).expect("Failed to schedule job");
+        rxs.push(rx);
+    }
+    progress_bar.println("🚚 Dispatched jobs to threads");
 
-        mp.set_move_cursor(true);
-        mp.println(format!(
-            "Rendering {}x{} ({} spp) | {} threads ({} rows/cpu)",
-            image_width, image_height, samples_per_pixel, cpus, rows_per_chunk[0]
-        ))
-        .unwrap();
-
-        for i in 0..cpus {
-            let world = world.clone();
-            let camera = camera.clone();
-            let rows_chunks = rows_chunks.clone();
-            let buffer_tx = buffer_tx.clone();
-
-            let p = mp.add(ProgressBar::new(rows_per_chunk[i] as u64));
-
-            s.spawn(move || {
-                let mut average_speed = 0.0;
-                let mut image_buffer = String::new();
-                // println!("Thread {} started", i);
-                let chunk = rows_chunks
-                    .get(i)
-                    .expect("Failed to get chunk from rows_chunks");
-                p.set_style(
-                    ProgressStyle::default_bar()
-                        .template(&format!(
-                            "[{}] {{elapsed}} ({{eta:3}}) {{wide_bar}} [{{pos:>2}}/{{len:2}}] {{msg}}",
-                            i + 1
-                        ))
-                        .unwrap()
-                        .progress_chars("█▉▊▋▌▍▎▏  "),
-                );
-                // p.set_message(format!("{}->{}", chunk[0], chunk[chunk.len() - 1]));
-                // let row_start_time = std::time::Instant::now();
-                // \x1B[2K\r
-                for j in chunk.iter() {
-                    let start_line = std::time::Instant::now();
-                    for i in 0..image_width {
-                        let mut average_color = Color::default();
-
-                        for _ in 0..samples_per_pixel {
-                            let u = (i as f32 + random_float()) / (image_width - 1) as f32; // 0.0 <= u <= 1.0 | u is the horizontal component of the pixel
-                            let v = (*j as f32 + random_float()) / (image_height - 1) as f32; // 0.0 <= v <= 1.0 | v is the vertical component of the pixel
-                            let r = camera.get_ray(u, v);
-                            average_color += r.color(&world, 1000);
-                        }
-
-                        average_color /= samples_per_pixel as f32;
-                        average_color = average_color.clamp(0.0, 0.999);
-                        average_color = average_color.gamma_correct(2.0);
-                        let res = format!("{}\n", average_color.to_string_color());
-                        // print!("{}", res);
-                        image_buffer.push_str(&res);
-                    }
-                    let duration = start_line.elapsed();
-                    average_speed = (average_speed + duration.as_secs_f32()) / 2.0;
-                    p.inc(1);
-                }
-                buffer_tx
-                    .send(TxData {
-                        buffer: image_buffer,
-                        thread_id: i,
-                    })
-                    .expect("Failed to send buffer to buffer_tx");
-                // let duration = row_start_time.elapsed();
-                // p.finish_with_message(format!("✅ in {}", HumanDuration(duration)));
-            });
+    for rx in rxs {
+        let result = rx.recv().unwrap();
+        for (i, buffer) in result.buffers.iter().enumerate() {
+            let index = (result.start + i as i32) as usize;
+            image_buffer[index] = buffer.clone();
         }
-    });
+        progress_bar.inc(result.buffers.len() as u64);
+    }
 
-    buffer_rx.iter().take(cpus).for_each(|data| {
-        image_buffer[data.thread_id] = data.buffer;
-    });
+    progress_bar.finish_and_clear();
 
-    let mut file_stream = File::create(args.output.clone()).unwrap();
+    let file_stream = File::create(args.output.clone()).unwrap();
+    let ref mut writer = BufWriter::new(file_stream);
+    let mut encoder = png::Encoder::new(writer, image_width as u32, image_height as u32);
+    encoder.set_color(png::ColorType::Rgb);
+    encoder.set_depth(png::BitDepth::Eight);
+    let mut writer = encoder.write_header().unwrap();
 
-    file_stream
-        .write_all(format!("P3\n{} {}\n255\n", image_width, image_height).as_bytes())
-        .unwrap();
-    file_stream
-        .write_all(image_buffer.join("").as_bytes())
-        .unwrap();
+    let mut data = Vec::with_capacity((image_height * image_width * 3) as usize);
+    image_buffer.reverse();
+    for row in image_buffer.iter() {
+        for pixel in row.iter() {
+            data.push((pixel.x * 255.0) as u8);
+            data.push((pixel.y * 255.0) as u8);
+            data.push((pixel.z * 255.0) as u8);
+        }
+    }
+    writer.write_image_data(&data).unwrap();
 
     let duration = start.elapsed();
     println!(
@@ -225,6 +176,6 @@ fn main() {
         duration.as_millis() as f32 / image_height as f32
     );
     if args.open {
-        open::that(args.output.clone()).expect("Failed to open image.ppm");
+        open::that(args.output.clone()).expect(&format!("Failed to open {}", args.output));
     }
 }

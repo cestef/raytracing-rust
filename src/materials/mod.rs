@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use dyn_clonable::clonable;
 
 use crate::utils::{hittable::HitRecord, ray::Ray, vec::Color};
@@ -15,6 +17,12 @@ pub trait Material: Clone + Send + Sync {
         attenuation: &mut Color,
         scattered: &mut Ray,
     ) -> bool;
+}
+
+impl Debug for dyn Material {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Material").finish()
+    }
 }
 
 #[macro_export]

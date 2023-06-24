@@ -74,7 +74,6 @@ impl Hittable for Triangle {
         let v0v1 = self.b - self.a;
         let v0v2 = self.c - self.a;
         let normal = v0v1.cross(&v0v2);
-        let area2 = normal.length();
 
         let n_dot_ray_direction = normal.dot(&ray.direction);
         if n_dot_ray_direction.abs() < 1e-8 {

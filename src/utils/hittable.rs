@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use dyn_clonable::clonable;
 
 use crate::{
@@ -13,6 +15,13 @@ pub trait Hittable: Clone + Send + Sync {
     fn hit(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<HitRecord>;
 }
 
+impl Debug for dyn Hittable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Hittable").finish()
+    }
+}
+
+#[derive(Debug)]
 pub struct HitRecord {
     pub point: Point3,
     pub normal: Vec3,

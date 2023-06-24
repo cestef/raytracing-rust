@@ -3,7 +3,7 @@ use crate::utils::{
     ray::Ray,
 };
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug)]
 pub struct HittableList {
     pub objects: Vec<Box<dyn Hittable>>,
 }

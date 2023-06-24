@@ -1,4 +1,13 @@
-use crate::utils::vec::Vec3;
+use std::env;
+
+use crate::{
+    shapes::list::HittableList,
+    utils::{
+        camera::Camera,
+        result::Res,
+        vec::{Color, Vec3},
+    },
+};
 
 pub fn random_float() -> f32 {
     rand::random::<f32>()
@@ -81,4 +90,42 @@ pub fn parse_aspect_ratio(aspect_ratio: &str) -> Result<f32, String> {
         }
     }
     Err("Failed to parse aspect ratio".to_string())
+}
+
+pub fn compute_chunk(args: (Vec<i32>, Box<Camera>, Box<HittableList>, i32, i32, i32)) -> Res {
+    let (chunk, camera, world, image_width, image_height, samples_per_pixel) = args;
+    let mut buffers = Vec::with_capacity(chunk.len());
+    let start_index = chunk[0];
+    for j in chunk {
+        let mut buffer = Vec::with_capacity(image_width as usize);
+        for i in 0..image_width {
+            let mut average_color = Color::default();
+
+            for _ in 0..samples_per_pixel {
+                let u = (i as f32 + random_float()) / (image_width - 1) as f32; // 0.0 <= u <= 1.0 | u is the horizontal component of the pixel
+                let v = (j as f32 + random_float()) / (image_height - 1) as f32; // 0.0 <= v <= 1.0 | v is the vertical component of the pixel
+                let r = camera.get_ray(u, v);
+                average_color += r.color(&world, 1000);
+            }
+
+            average_color /= samples_per_pixel as f32;
+            average_color = average_color.clamp(0.0, 0.999);
+            average_color = average_color.gamma_correct(2.0);
+            buffer.push(average_color);
+        }
+        buffers.push(buffer);
+    }
+
+    Res {
+        buffers,
+        start: start_index,
+    }
+}
+
+pub fn clear() {
+    if env::consts::OS == "macos" || env::consts::OS == "linux" {
+        std::process::Command::new("clear").status().unwrap();
+    } else {
+        std::process::Command::new("cls").status().unwrap();
+    }
 }
