@@ -12,11 +12,16 @@ use crate::{
 pub struct Ray {
     pub origin: Point3,
     pub direction: Vec3,
+    pub time: f32,
 }
 
 impl Ray {
-    pub fn new(origin: Vec3, direction: Vec3) -> Self {
-        Self { origin, direction }
+    pub fn new(origin: Vec3, direction: Vec3, time: f32) -> Self {
+        Self {
+            origin,
+            direction,
+            time,
+        }
     }
 
     pub fn at(&self, t: f32) -> Point3 {
@@ -30,11 +35,12 @@ impl Ray {
             Some(hit) => {
                 let mut scattered = Ray::default();
                 let mut attenuation = Vec3::default();
-                if hit
-                    .material
-                    .scatter(self, &hit, &mut attenuation, &mut scattered)
-                {
-                    attenuation * scattered.color(world, depth - 1)
+                if let Some(material) = hit.material.clone() {
+                    if material.scatter(self, &hit, &mut attenuation, &mut scattered) {
+                        attenuation * scattered.color(world, depth - 1)
+                    } else {
+                        Vec3::zero()
+                    }
                 } else {
                     Vec3::zero()
                 }
@@ -53,6 +59,7 @@ impl Default for Ray {
         Self {
             origin: Point3::default(),
             direction: Vec3::default(),
+            time: 0.0,
         }
     }
 }

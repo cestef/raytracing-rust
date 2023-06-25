@@ -1,7 +1,11 @@
 use crate::utils::{
+    helpers::random_float_range,
     ray::Ray,
     vec::{Point3, Vec3},
 };
+
+pub const MIN_TIME: f32 = 0.0;
+pub const MAX_TIME: f32 = 1.0;
 
 #[derive(Debug, Clone)]
 pub struct Camera {
@@ -53,6 +57,7 @@ impl Camera {
         Ray::new(
             self.origin,
             self.lower_left_corner + u * self.horizontal + v * self.vertical - self.origin,
+            random_float_range(MIN_TIME, MAX_TIME),
         )
     }
 }

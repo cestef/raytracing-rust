@@ -1,3 +1,6 @@
+pub mod aabb;
+pub mod animated;
+pub mod bvh;
 pub mod list;
 pub mod plane;
 pub mod sphere;
@@ -17,12 +20,12 @@ macro_rules! shape {
     }) => {
         #[derive(Clone)]
         pub struct $name {
-            pub material: Box<dyn crate::materials::Material + Send + Sync>,
+            pub material: Option<Box<dyn crate::materials::Material + Send + Sync>>,
             $(pub $field: $type),*
         }
 
         impl $name {
-            pub fn new($($field: $type),*, material: Box<dyn crate::materials::Material + Send + Sync>) -> Self {
+            pub fn new($($field: $type),*, material: Option<Box<dyn crate::materials::Material + Send + Sync>>) -> Self {
                 Self {
                     material,
                     $($field),*

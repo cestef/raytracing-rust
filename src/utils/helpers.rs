@@ -1,4 +1,5 @@
 use std::{
+    cmp::Ordering,
     env,
     fs::File,
     io::{BufWriter, Write},
@@ -231,8 +232,24 @@ pub fn random_spheres(n: usize) -> Vec<Box<dyn Hittable>> {
                     random_float_range(-7.0, 7.0),
                 ),
                 random_float_range(0.1, 2.0),
-                material,
+                Some(material),
             )) as Box<dyn Hittable>
         })
         .collect()
+}
+pub fn box_compare(a: &Box<dyn Hittable>, b: &Box<dyn Hittable>, axis: u8) -> Ordering {
+    let box_a = a.bounding_box(0.0, 0.0).unwrap();
+    let box_b = b.bounding_box(0.0, 0.0).unwrap();
+    box_a.min[axis as usize]
+        .partial_cmp(&box_b.min[axis as usize])
+        .unwrap()
+}
+pub fn box_x_compare(a: &Box<dyn Hittable>, b: &Box<dyn Hittable>) -> Ordering {
+    box_compare(a, b, 0)
+}
+pub fn box_y_compare(a: &Box<dyn Hittable>, b: &Box<dyn Hittable>) -> Ordering {
+    box_compare(a, b, 1)
+}
+pub fn box_z_compare(a: &Box<dyn Hittable>, b: &Box<dyn Hittable>) -> Ordering {
+    box_compare(a, b, 2)
 }

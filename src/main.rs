@@ -2,13 +2,15 @@
 
 mod materials;
 mod shapes;
+mod textures;
 mod utils;
 
 use std::sync::mpsc::Receiver;
 
 use crate::{
-    materials::metal::Metal,
-    shapes::{list::HittableList, plane::Plane},
+    materials::lambertian::Lambertian,
+    shapes::{bvh::BvhNode, list::HittableList, plane::Plane, sphere::Sphere},
+    textures::{image::ImageTexture, solid::SolidColor},
     utils::{
         args::Args,
         camera::Camera,
@@ -46,32 +48,33 @@ fn main() {
     let samples_per_pixel = args.samples;
 
     let camera = Box::new(Camera::new(
-        Vec3::new(-5.0, 5.0, 5.0),
+        Vec3::new(-3.0, 3.0, 3.0),
         Vec3::new(0.0, 0.0, 0.0),
         Vec3::new(0.0, 1.0, 0.0),
         args.fov,
         aspect_ratio,
     ));
     let random: Vec<Box<dyn hittable::Hittable>> = random_spheres(10);
-    let world = Box::new(HittableList::new(
-        vec![
-            Box::new(Plane::new(
-                Point3::new(0.0, -5.0, 0.0),
-                Vec3::new(0.0, 1.0, 0.0),
-                Box::new(Metal::new(Color::new(0.5, 0.5, 0.5), 0.0)),
-            )) as Box<dyn hittable::Hittable>,
-            // Box::new(Triangle::new(
-            //     Point3::new(-5.0, 0.0, -5.0),
-            //     Point3::new(5.0, 0.0, -5.0),
-            //     Point3::new(0.0, 0.0, 5.0),
-            //     Vec3::new(0.0, 1.0, 0.0),
-            //     Box::new(Metal::new(Color::new(0.5, 0.5, 0.5), 0.0)),
-            // )) as Box<dyn hittable::Hittable>,
-        ]
-        .into_iter()
-        .chain(random.into_iter())
-        .collect(),
-    ));
+    let world = Box::new(HittableList::new(vec![
+        Box::new(BvhNode::from_objects(random, 0, 10, 0.0, 1.0)),
+        // Box::new(Plane::new(
+        //     Point3::new(0.0, -3.0, 0.0),
+        //     Vec3::new(0.0, 1.0, 0.0),
+        //     Some(Box::new(Lambertian::with_texture(
+        //         Color::new(0.0, 0.0, 0.0),
+        //         Box::new(SolidColor::new(Color::new(0.5, 0.5, 0.5))),
+        //     ))),
+        // )),
+        // Box::new(Sphere::new(
+        //     Point3::new(0.0, 0.0, 0.0),
+        //     2.0,
+        //     Some(Box::new(Lambertian::with_texture(
+        //         Color::new(0.0, 0.0, 0.0),
+        //         Box::new(ImageTexture::new("earthmap.jpg")),
+        //         // Box::new(SolidColor::new(Color::new(0.5, 0.5, 0.5))),
+        //     ))),
+        // )),
+    ]));
 
     let mut image_buffer: Vec<Vec<Color>> =
         vec![vec![Color::new(0.0, 0.0, 0.0); image_width as usize]; image_height as usize];

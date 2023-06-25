@@ -20,11 +20,11 @@ This is just a raytracer written in Rust. It is based on the book [Ray Tracing i
 - [x] Load balancing
 - [x] Beautiful CLI
 - [x] Multiple file formats (JPG, PNG, PPM)
+- [x] Bounding Volume Hierarchies Optimisation
 - [ ] Rendering to a window
 - [ ] Textures
 - [ ] Importing models
 - [ ] Lights
-- [ ] Bounding Volume Hierarchies
 
 ## Running
 

@@ -19,7 +19,7 @@ pub trait Material: Clone + Send + Sync {
     ) -> bool;
 }
 
-impl Debug for dyn Material {
+impl Debug for dyn Material + Send + Sync {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Material").finish()
     }
@@ -30,15 +30,23 @@ macro_rules! material {
     ($name:ident {
         $($field:ident: $type:ty),*
     }) => {
-        #[derive(Clone, Copy)]
+        #[derive(Clone)]
         pub struct $name {
-            $(pub $field: $type),*
+            $(pub $field: $type),*,
+            pub texture: Option<Box<dyn crate::textures::Texture + Send + Sync>>
         }
 
         impl $name {
             pub fn new($($field: $type),*) -> Self {
                 Self {
-                    $($field),*
+                    $($field),*,
+                    texture: None
+                }
+            }
+            pub fn with_texture($($field: $type),*, texture: Box<dyn crate::textures::Texture + Send + Sync>) -> Self {
+                Self {
+                    $($field),*,
+                    texture: Some(texture)
                 }
             }
         }

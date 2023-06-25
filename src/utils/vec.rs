@@ -225,5 +225,18 @@ impl Display for Vec3 {
     }
 }
 
+impl ops::Index<usize> for Vec3 {
+    type Output = f32;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        match index {
+            0 => &self.x,
+            1 => &self.y,
+            2 => &self.z,
+            _ => panic!("Index out of bounds for Vec3"),
+        }
+    }
+}
+
 pub type Color = Vec3;
 pub type Point3 = Vec3;

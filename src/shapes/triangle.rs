@@ -1,5 +1,6 @@
 use crate::{
     shape,
+    shapes::aabb::AxisAlignedBoundingBox,
     utils::{
         hittable::{self, Hittable},
         ray::Ray,
@@ -13,62 +14,7 @@ shape!(Triangle {
     c: Point3,
     normal: Vec3
 });
-/*
-bool rayTriangleIntersect(
-    const Vec3f &orig, const Vec3f &dir,
-    const Vec3f &v0, const Vec3f &v1, const Vec3f &v2,
-    float &t)
-{
-    // compute the plane's normal
-    Vec3f v0v1 = v1 - v0;
-    Vec3f v0v2 = v2 - v0;
-    // no need to normalize
-    Vec3f N = v0v1.crossProduct(v0v2); // N
-    float area2 = N.length();
 
-    // Step 1: finding P
-
-    // check if the ray and plane are parallel.
-    float NdotRayDirection = N.dotProduct(dir);
-    if (fabs(NdotRayDirection) < kEpsilon) // almost 0
-        return false; // they are parallel, so they don't intersect!
-
-    // compute d parameter using equation 2
-    float d = -N.dotProduct(v0);
-
-    // compute t (equation 3)
-    t = -(N.dotProduct(orig) + d) / NdotRayDirection;
-
-    // check if the triangle is behind the ray
-    if (t < 0) return false; // the triangle is behind
-
-    // compute the intersection point using equation 1
-    Vec3f P = orig + t * dir;
-
-    // Step 2: inside-outside test
-    Vec3f C; // vector perpendicular to triangle's plane
-
-    // edge 0
-    Vec3f edge0 = v1 - v0;
-    Vec3f vp0 = P - v0;
-    C = edge0.crossProduct(vp0);
-    if (N.dotProduct(C) < 0) return false; // P is on the right side
-
-    // edge 1
-    Vec3f edge1 = v2 - v1;
-    Vec3f vp1 = P - v1;
-    C = edge1.crossProduct(vp1);
-    if (N.dotProduct(C) < 0)  return false; // P is on the right side
-
-    // edge 2
-    Vec3f edge2 = v0 - v2;
-    Vec3f vp2 = P - v2;
-    C = edge2.crossProduct(vp2);
-    if (N.dotProduct(C) < 0) return false; // P is on the right side;
-
-    return true; // this ray hits the triangle
-}
- */
 impl Hittable for Triangle {
     fn hit(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<hittable::HitRecord> {
         let v0v1 = self.b - self.a;
@@ -106,11 +52,42 @@ impl Hittable for Triangle {
             if normal.dot(&c) < 0.0 {
                 return None;
             }
-
-            let mut hit_record = hittable::HitRecord::new(point, normal, self.material.clone(), t);
+            let (u, v) = self.get_triangle_uv(&point);
+            let mut hit_record =
+                hittable::HitRecord::new(point, normal, self.material.clone(), t, u, v);
             hit_record.set_face_normal(ray, normal);
             return Some(hit_record);
         }
         None
+    }
+    fn bounding_box(&self, _time0: f32, _time1: f32) -> Option<AxisAlignedBoundingBox> {
+        let small = Point3::new(
+            self.a.x.min(self.b.x.min(self.c.x)),
+            self.a.y.min(self.b.y.min(self.c.y)),
+            self.a.z.min(self.b.z.min(self.c.z)),
+        );
+        let big = Point3::new(
+            self.a.x.max(self.b.x.max(self.c.x)),
+            self.a.y.max(self.b.y.max(self.c.y)),
+            self.a.z.max(self.b.z.max(self.c.z)),
+        );
+        Some(AxisAlignedBoundingBox::new(small, big, None))
+    }
+}
+
+impl Triangle {
+    fn get_triangle_uv(&self, point: &Point3) -> (f32, f32) {
+        let edge0 = self.b - self.a;
+        let edge1 = self.c - self.a;
+        let p = *point - self.a;
+        let mut u = edge0.dot(&edge0);
+        let mut v = edge0.dot(&edge1);
+        let w = edge0.dot(&p);
+        let uu = edge1.dot(&edge1);
+        let uv = edge1.dot(&p);
+        let denom = u * uu - v * v;
+        u = (uu * w - v * uv) / denom;
+        v = (u * v - uu * uv) / denom;
+        (u, v)
     }
 }
