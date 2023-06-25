@@ -1,13 +1,23 @@
-use std::env;
+use std::{
+    env,
+    fs::File,
+    io::{BufWriter, Write},
+    path::Path,
+};
+
+use jpeg_encoder::ColorType;
 
 use crate::{
-    shapes::list::HittableList,
+    materials::{lambertian::Lambertian, metal::Metal, Material},
+    shapes::{list::HittableList, sphere::Sphere},
     utils::{
         camera::Camera,
         result::Res,
         vec::{Color, Vec3},
     },
 };
+
+use super::{hittable::Hittable, vec::Point3};
 
 pub fn random_float() -> f32 {
     rand::random::<f32>()
@@ -128,4 +138,101 @@ pub fn clear() {
     } else {
         std::process::Command::new("clear").status().unwrap();
     }
+}
+
+pub fn write_to_file(path: &str, buffer: &Vec<Vec<Vec3>>, image_width: i32, image_height: i32) {
+    let path = Path::new(path);
+    let extension = path.extension();
+    match extension {
+        Some(e) => match e.to_str() {
+            Some(e) => match e {
+                "jpg" | "jpeg" => {
+                    let encoder = jpeg_encoder::Encoder::new_file(path, 100)
+                        .expect("Failed to create jpeg encoder");
+                    let mut data = Vec::with_capacity((image_height * image_width * 3) as usize);
+                    for row in buffer.iter() {
+                        for pixel in row.iter() {
+                            data.push((pixel.x * 255.0) as u8);
+                            data.push((pixel.y * 255.0) as u8);
+                            data.push((pixel.z * 255.0) as u8);
+                        }
+                    }
+                    encoder
+                        .encode(
+                            &data,
+                            image_width as u16,
+                            image_height as u16,
+                            ColorType::Rgb,
+                        )
+                        .expect("Failed to encode jpeg");
+                }
+                "png" => {
+                    let file_stream = File::create(path).unwrap();
+                    let ref mut writer = BufWriter::new(file_stream);
+                    let mut encoder =
+                        png::Encoder::new(writer, image_width as u32, image_height as u32);
+                    encoder.set_color(png::ColorType::Rgb);
+                    encoder.set_depth(png::BitDepth::Eight);
+                    let mut writer = encoder.write_header().unwrap();
+
+                    let mut data = Vec::with_capacity((image_height * image_width * 3) as usize);
+                    for row in buffer.iter() {
+                        for pixel in row.iter() {
+                            data.push((pixel.x * 255.0) as u8);
+                            data.push((pixel.y * 255.0) as u8);
+                            data.push((pixel.z * 255.0) as u8);
+                        }
+                    }
+                    writer.write_image_data(&data).unwrap();
+                }
+                "ppm" => {
+                    let mut file = File::create(path).expect("Failed to create file");
+                    file.write_all(
+                        format!("P3\n{} {}\n255\n", image_width, image_height).as_bytes(),
+                    )
+                    .expect("Failed to write to file");
+                    for row in buffer.iter() {
+                        for pixel in row.iter() {
+                            let r = (pixel.x * 255.0) as i32;
+                            let g = (pixel.y * 255.0) as i32;
+                            let b = (pixel.z * 255.0) as i32;
+                            file.write_all(format!("{} {} {}\n", r, g, b).as_bytes())
+                                .expect("Failed to write to file");
+                        }
+                    }
+                }
+                _ => {}
+            },
+            _ => {}
+        },
+        _ => {}
+    }
+}
+
+pub fn random_spheres(n: usize) -> Vec<Box<dyn Hittable>> {
+    vec![0; n]
+        .iter()
+        .map(|_| {
+            let color = Color::new(
+                random_float() * random_float(),
+                random_float() * random_float(),
+                random_float() * random_float(),
+            );
+            let material = if random_float() < 0.7 {
+                Box::new(Lambertian::new(color)) as Box<dyn Material + Sync + Send>
+            } else {
+                Box::new(Metal::new(color, 0.0)) as Box<dyn Material + Sync + Send>
+            };
+            Box::new(Sphere::new(
+                Point3::new(
+                    random_float_range(-7.0, 7.0),
+                    // random_float_range(-5.0, 5.0),
+                    0.0,
+                    random_float_range(-7.0, 7.0),
+                ),
+                random_float_range(0.1, 2.0),
+                material,
+            )) as Box<dyn Hittable>
+        })
+        .collect()
 }

@@ -4,17 +4,16 @@ mod materials;
 mod shapes;
 mod utils;
 
-use std::{fs::File, io::BufWriter, sync::mpsc::Receiver};
+use std::sync::mpsc::Receiver;
 
 use crate::{
-    materials::{lambertian::Lambertian, metal::Metal},
+    materials::metal::Metal,
     shapes::{list::HittableList, plane::Plane},
     utils::{
         args::Args,
         camera::Camera,
         helpers::{
-            clear, compute_chunk, parse_aspect_ratio, random_float, random_float_range,
-            split_evenly,
+            clear, compute_chunk, parse_aspect_ratio, random_spheres, split_evenly, write_to_file,
         },
         hittable,
         result::Res,
@@ -23,12 +22,13 @@ use crate::{
     },
 };
 use clap::Parser;
-use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
-use shapes::sphere::Sphere;
+use indicatif::{HumanBytes, HumanDuration, ProgressBar, ProgressStyle};
 
 fn main() {
-    clear();
     let args = Args::parse();
+    if args.clear {
+        clear();
+    }
     let cpus = args.threads;
     let image_width = args.width;
     let aspect_ratio = parse_aspect_ratio(&args.aspect_ratio).unwrap_or({
@@ -52,31 +52,7 @@ fn main() {
         args.fov,
         aspect_ratio,
     ));
-    let random: Vec<Box<dyn hittable::Hittable>> = vec![0; 10]
-        .iter()
-        .map(|_| {
-            let color = Color::new(
-                random_float() * random_float(),
-                random_float() * random_float(),
-                random_float() * random_float(),
-            );
-            let material = if random_float() < 0.7 {
-                Box::new(Lambertian::new(color)) as Box<dyn materials::Material + Sync + Send>
-            } else {
-                Box::new(Metal::new(color, 0.0)) as Box<dyn materials::Material + Sync + Send>
-            };
-            Box::new(Sphere::new(
-                Point3::new(
-                    random_float_range(-7.0, 7.0),
-                    // random_float_range(-5.0, 5.0),
-                    0.0,
-                    random_float_range(-7.0, 7.0),
-                ),
-                random_float_range(0.1, 2.0),
-                material,
-            )) as Box<dyn hittable::Hittable>
-        })
-        .collect();
+    let random: Vec<Box<dyn hittable::Hittable>> = random_spheres(10);
     let world = Box::new(HittableList::new(
         vec![
             Box::new(Plane::new(
@@ -97,9 +73,8 @@ fn main() {
         .collect(),
     ));
 
-    let mut image_buffer: Vec<Vec<Vec3>> =
-        Vec::with_capacity((image_height * image_width) as usize);
-    image_buffer.resize((image_height * image_width) as usize, vec![]);
+    let mut image_buffer: Vec<Vec<Color>> =
+        vec![vec![Color::new(0.0, 0.0, 0.0); image_width as usize]; image_height as usize];
 
     let start = std::time::Instant::now();
 
@@ -112,7 +87,7 @@ fn main() {
     let mut rxs: Vec<Receiver<Res>> = Vec::with_capacity(cpus);
     let progress_bar = ProgressBar::new(image_height as u64).with_style(
         ProgressStyle::default_bar()
-            .template("[{elapsed_precise}] {bar:40.cyan/blue} {percent}% {eta_precise}")
+            .template("{spinner:.blue} [{elapsed_precise}] {wide_bar:40.cyan/blue} {percent}% {eta_precise}")
             .unwrap()
             .progress_chars("█▉▊▋▌▍▎▏ "),
     );
@@ -150,28 +125,17 @@ fn main() {
     }
 
     progress_bar.finish_and_clear();
-
-    let file_stream = File::create(args.output.clone()).unwrap();
-    let ref mut writer = BufWriter::new(file_stream);
-    let mut encoder = png::Encoder::new(writer, image_width as u32, image_height as u32);
-    encoder.set_color(png::ColorType::Rgb);
-    encoder.set_depth(png::BitDepth::Eight);
-    let mut writer = encoder.write_header().unwrap();
-
-    let mut data = Vec::with_capacity((image_height * image_width * 3) as usize);
-    image_buffer.reverse();
-    for row in image_buffer.iter() {
-        for pixel in row.iter() {
-            data.push((pixel.x * 255.0) as u8);
-            data.push((pixel.y * 255.0) as u8);
-            data.push((pixel.z * 255.0) as u8);
-        }
-    }
-    writer.write_image_data(&data).unwrap();
-
+    println!("🔨 Finished rendering");
     let duration = start.elapsed();
+
+    image_buffer.reverse();
+    write_to_file(&args.output, &image_buffer, image_width, image_height);
+    let file_size = std::fs::metadata(&args.output)
+        .expect(&format!("Failed to get metadata for {}", args.output))
+        .len();
+    println!("📝 Wrote to {} ({})", args.output, HumanBytes(file_size));
     println!(
-        "\n⏱️  Time elapsed: {} (avg. {:.2}µs/pixel)",
+        "⏱️  Time elapsed: {} (avg. {:.2}µs/pixel)",
         HumanDuration(duration),
         duration.as_micros() as f32 / (image_height as f32 * image_width as f32)
     );

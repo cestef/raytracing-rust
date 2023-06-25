@@ -9,6 +9,7 @@ edition = "2021"
 clap = { version = "4.3.5", features = ["derive"] }
 dyn-clonable = "0.9.0"
 indicatif = "0.17.5"
+jpeg-encoder = "0.5.1"
 num_cpus = "1.15.0"
 open = "4.2.0"
 png = "0.17.9"

@@ -26,4 +26,6 @@ pub struct Args {
     pub fov: f32,
     #[clap(long)]
     pub open: bool,
+    #[clap(long)]
+    pub clear: bool,
 }
