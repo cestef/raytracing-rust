@@ -3,20 +3,23 @@
 This is just a raytracer written in Rust. It is based on the book [Ray Tracing in One Weekend](https://raytracing.github.io/books/RayTracingInOneWeekend.html) by Peter Shirley.
 
 ## Features
-
-- [x] Spheres
-- [x] Planes
+- Shapes:
+  - [x] Spheres
+  - [x] Planes
+- Materials:
+  - [x] Lambertian
+  - [x] Metal
+  - [x] Dielectric
 - [x] Antialiasing
-- [x] Lambertian materials
-- [x] Metal materials
-- [x] Dielectric materials
 - [x] Positionable camera
 - [x] Depth of field
 - [x] FOV
 - [x] Gamma correction
-- [x] Multithreading
 - [x] Triangle mesh support
-- [x] Load balancing 
+- [x] Multithreading
+- [x] Load balancing
+- [x] Beautiful CLI
+- [x] Multiple file formats (JPG, PNG, PPM)
 - [ ] Rendering to a window
 - [ ] Textures
 - [ ] Importing models
