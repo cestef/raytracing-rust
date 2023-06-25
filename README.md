@@ -24,6 +24,7 @@ This is just a raytracer written in Rust. It is based on the book [Ray Tracing i
 - [ ] Textures
 - [ ] Importing models
 - [ ] Lights
+- [ ] Bounding Volume Hierarchies
 
 ## Running
 
